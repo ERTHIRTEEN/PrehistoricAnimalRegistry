@@ -1,0 +1,162 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract PrehistoricAnimalRegistry is Ownable {
+    // Struct for Prehistoric Animal
+    struct Animal {
+        uint256 id;
+        string species; // e.g., "Tyrannosaurus Rex"
+        string era; // e.g., "Cretaceous"
+        string dataHash; // IPFS hash for detailed data (e.g., JSON with description, image)
+        address recordedBy; // Contributor who added the entry
+        uint256 timestamp; // Unix timestamp
+        bool isActive;
+    }
+
+    // Struct for Authorized Contributor
+    struct Contributor {
+        address contributorAddress;
+        string name; // e.g., "Smithsonian Institute"
+        bool isAuthorized;
+    }
+
+    // Counters
+    uint256 private nextAnimalId = 1;
+
+    // Mappings
+    mapping(uint256 => Animal) public animals;
+    mapping(address => Contributor) public contributors;
+    mapping(address => uint256[]) public contributorAnimals; // Contributor to list of animal IDs
+
+    // Events
+    event ContributorAuthorized(address indexed contributor, string name);
+    event ContributorRevoked(address indexed contributor);
+    event AnimalRecorded(
+        uint256 indexed animalId,
+        string species,
+        string era,
+        string dataHash,
+        address recordedBy
+    );
+    event AnimalUpdated(uint256 indexed animalId, string dataHash);
+    event AnimalDeactivated(uint256 indexed animalId);
+
+    constructor() Ownable(msg.sender) {}
+
+    // Modifier to restrict access to authorized contributors
+    modifier onlyAuthorizedContributor() {
+        require(contributors[msg.sender].isAuthorized, "Not authorized contributor");
+        _;
+    }
+
+    // Authorize a contributor (e.g., paleontologist, museum)
+    function authorizeContributor(address contributor, string memory name) external onlyOwner {
+        require(contributor != address(0), "Invalid address");
+        require(bytes(name).length > 0, "Name cannot be empty");
+        require(!contributors[contributor].isAuthorized, "Contributor already authorized");
+
+        contributors[contributor] = Contributor(contributor, name, true);
+        emit ContributorAuthorized(contributor, name);
+    }
+
+    // Revoke a contributor's authorization
+    function revokeContributor(address contributor) external onlyOwner {
+        require(contributors[contributor].isAuthorized, "Contributor not authorized");
+        contributors[contributor].isAuthorized = false;
+        emit ContributorRevoked(contributor);
+    }
+
+    // Record a new prehistoric animal
+    function recordAnimal(
+        string memory species,
+        string memory era,
+        string memory dataHash
+    ) external onlyAuthorizedContributor returns (uint256) {
+        require(bytes(species).length > 0, "Species cannot be empty");
+        require(bytes(era).length > 0, "Era cannot be empty");
+        require(bytes(dataHash).length > 0, "Data hash cannot be empty");
+
+        uint256 animalId = nextAnimalId++;
+        animals[animalId] = Animal(
+            animalId,
+            species,
+            era,
+            dataHash,
+            msg.sender,
+            block.timestamp,
+            true
+        );
+        contributorAnimals[msg.sender].push(animalId);
+
+        emit AnimalRecorded(animalId, species, era, dataHash, msg.sender);
+        return animalId;
+    }
+
+    // Update an animal's data hash (e.g., for updated research)
+    function updateAnimal(uint256 animalId, string memory newDataHash) external onlyAuthorizedContributor {
+        require(animals[animalId].isActive, "Animal not active");
+        require(animals[animalId].recordedBy == msg.sender, "Not recorded by this contributor");
+        require(bytes(newDataHash).length > 0, "Data hash cannot be empty");
+
+        animals[animalId].dataHash = newDataHash;
+        animals[animalId].timestamp = block.timestamp;
+        emit AnimalUpdated(animalId, newDataHash);
+    }
+
+    // Deactivate an animal entry
+    function deactivateAnimal(uint256 animalId) external {
+        require(animals[animalId].isActive, "Animal not active");
+        require(
+            animals[animalId].recordedBy == msg.sender || owner() == msg.sender,
+            "Not authorized"
+        );
+        animals[animalId].isActive = false;
+        emit AnimalDeactivated(animalId);
+    }
+
+    // Get animal details
+    function getAnimal(uint256 animalId)
+        external
+        view
+        returns (
+            string memory species,
+            string memory era,
+            string memory dataHash,
+            address recordedBy,
+            uint256 timestamp,
+            bool isActive
+        )
+    {
+        require(animals[animalId].id != 0, "Animal does not exist");
+        Animal memory animal = animals[animalId];
+        return (
+            animal.species,
+            animal.era,
+            animal.dataHash,
+            animal.recordedBy,
+            animal.timestamp,
+            animal.isActive
+        );
+    }
+
+    // Get animals recorded by a contributor
+    function getContributorAnimals(address contributor)
+        external
+        view
+        returns (uint256[] memory)
+    {
+        return contributorAnimals[contributor];
+    }
+
+    // Get contributor details
+    function getContributor(address contributor)
+        external
+        view
+        returns (string memory name, bool isAuthorized)
+    {
+        Contributor memory c = contributors[contributor];
+        return (c.name, c.isAuthorized);
+    }
+}
