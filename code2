@@ -1,0 +1,10 @@
+from cryptography.fernet import Fernet
+
+# Generate and save a key (do this once and store securely)
+key = Fernet.generate_key()
+cipher = Fernet(key)
+
+# Encrypt diet before saving
+encrypted_diet = cipher.encrypt(diet.encode()).decode()
+# Decrypt when retrieving
+decrypted_diet = cipher.decrypt(encrypted_diet.encode()).decode()
