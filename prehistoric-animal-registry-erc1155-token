@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract PrehistoricAnimalRegistry is ERC1155, Ownable {
+    // Struct to store animal metadata
+    struct AnimalData {
+        string species; // e.g., "Tyrannosaurus rex"
+        string era; // e.g., "Cretaceous"
+        string catalogCode; // e.g., "ANSPCODE123"
+        string discoveryLocation; // e.g., "Hell Creek, Montana"
+    }
+    
+    // Mapping for token ID to animal metadata
+    mapping(uint256 => AnimalData) public animalRegistry;
+    
+    // Event for token minting
+    event AnimalMinted(address indexed operator, address indexed to, uint256 id, uint256 amount, AnimalData data);
+    
+    constructor(string memory uri) ERC1155(uri) Ownable(msg.sender) {
+        // Base URI for metadata, e.g., "https://ipfs.io/ipfs/{id}.json"
+    }
+    
+    // Mint fungible tokens (e.g., multiple fossils of a species)
+    function mintAnimal(
+        address to,
+        uint256 id,
+        uint256 amount,
+        string memory species,
+        string memory era,
+        string memory catalogCode,
+        string memory discoveryLocation,
+        bytes memory data
+    ) public onlyOwner {
+        _mint(to, id, amount, data);
+        animalRegistry[id] = AnimalData(species, era, catalogCode, discoveryLocation);
+        emit AnimalMinted(msg.sender, to, id, amount, animalRegistry[id]);
+    }
+    
+    // Mint NFT for a unique specimen
+    function mintAnimalNFT(
+        address to,
+        uint256 id,
+        string memory species,
+        string memory era,
+        string memory catalogCode,
+        string memory discoveryLocation,
+        bytes memory data
+    ) public onlyOwner {
+        _mint(to, id, 1, data); // NFT: amount is 1
+        animalRegistry[id] = AnimalData(species, era, catalogCode, discoveryLocation);
+        emit AnimalMinted(msg.sender, to, id, 1, animalRegistry[id]);
+    }
+    
+    // Batch mint multiple token types
+    function mintBatchAnimals(
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        AnimalData[] memory animalData,
+        bytes memory data
+    ) public onlyOwner {
+        require(ids.length == animalData.length, "IDs and data length mismatch");
+        _mintBatch(to, ids, amounts, data);
+        for (uint256 i = 0; i < ids.length; i++) {
+            animalRegistry[ids[i]] = animalData[i];
+        }
+    }
+    
+    // Get animal metadata
+    function getAnimalData(uint256 id) public view returns (AnimalData memory) {
+        return animalRegistry[id];
+    }
+}
